@@ -127,3 +127,32 @@ tools:
         timeframe: {type: string, enum: [day, week, month, year], description: "Only stories from this period: day = hôm nay/24h; week = tuần này; month = tháng này; year = năm nay. Omit if the user gives no period."}
         limit: {type: integer, default: 5, description: "Number of stories (1-20); use the number the user asks for, otherwise 5."}
       required: [query]
+  - name: github_repo_search
+    description: "Search open-source code repositories on GitHub. USE when the user asks for repos / mã nguồn mở / source code / thư viện on GitHub. DO NOT use for news (lookup), papers (papers) or pretrained models (huggingface_model_search)."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, description: "Topic keywords only, e.g. 'AI agents', 'vector database'."}
+        language: {type: string, description: "Programming language if the user names one ('viết bằng Python' -> 'Python'). Omit otherwise."}
+        sort: {type: string, enum: [stars, updated, best_match], default: "stars", description: "stars = nhiều sao/phổ biến nhất (default); updated = mới cập nhật; best_match = liên quan nhất."}
+        limit: {type: integer, default: 5, description: "Number of repos (1-20)."}
+      required: [query]
+  - name: wikipedia_summary
+    description: "Short encyclopedia summary of a concept from Wikipedia. USE for definition questions ('X là gì?', 'giải thích khái niệm X'). DO NOT use for recent news (lookup), papers (papers) or off-topic requests."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, description: "The concept only, e.g. 'Retrieval-augmented generation'."}
+        lang: {type: string, enum: [en, vi], default: "en", description: "Wikipedia language edition."}
+        sentences: {type: integer, default: 3, description: "Summary length in sentences (1-10)."}
+      required: [query]
+  - name: huggingface_model_search
+    description: "Search pretrained models on the Hugging Face Hub. USE when the user wants a model/checkpoint to use ('model nào trên Hugging Face để ...'). DO NOT use for news about the Hugging Face company (lookup), papers (papers) or code repos (github_repo_search)."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, description: "Model name or keyword, e.g. 'whisper', 'vietnamese'."}
+        task: {type: string, description: "Hub pipeline tag if the user names a task: automatic-speech-recognition (nhận dạng giọng nói/speech-to-text), text-generation, text-classification, translation, text-to-image."}
+        sort: {type: string, enum: [downloads, likes, lastModified], default: "downloads", description: "downloads (default), likes, or lastModified (mới nhất)."}
+        limit: {type: integer, default: 5, description: "Number of models (1-20)."}
+      required: [query]

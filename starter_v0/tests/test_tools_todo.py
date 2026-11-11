@@ -307,3 +307,138 @@ def test_hacker_news_search_timeout_returns_error_dict(fake_http) -> None:
 
     assert result["error"] == "Timeout"
     assert "timed out" in result["message"]
+
+
+# ---------------------------------------------------------------------------
+# Bonus tools: github_repo_search, wikipedia_summary, huggingface_model_search
+# ---------------------------------------------------------------------------
+import requests  # noqa: E402
+
+github_repo_search = TOOL_FUNCTIONS["github_repo_search"]
+wikipedia_summary = TOOL_FUNCTIONS["wikipedia_summary"]
+huggingface_model_search = TOOL_FUNCTIONS["huggingface_model_search"]
+
+GH_PAYLOAD = {"total_count": 2, "items": [
+    {"full_name": "acme/agents", "html_url": "https://github.com/acme/agents", "description": "Agent framework",
+     "stargazers_count": 900, "language": "Python", "updated_at": "2026-11-01T00:00:00Z"},
+    {"full_name": None, "html_url": "https://github.com/x/y"},
+]}
+
+
+def test_github_repo_search_happy_path_builds_query_and_maps_repos(fake_http) -> None:
+    calls = fake_http(FakeResponse(GH_PAYLOAD))
+    result = github_repo_search(query="AI agents", language="Python", sort="stars", limit=5)
+    assert len(calls) == 1
+    assert calls[0]["url"] == "https://api.github.com/search/repositories"
+    assert calls[0]["params"] == {"q": "AI agents language:Python", "per_page": 5, "sort": "stars", "order": "desc"}
+    assert "Authorization" not in calls[0]["headers"]
+    assert result["total_count"] == 2
+    assert result["items"] == [{"title": "acme/agents", "url": "https://github.com/acme/agents", "source": "github.com",
+                                "summary": "Agent framework", "stars": 900, "language": "Python",
+                                "updated_at": "2026-11-01T00:00:00Z"}]
+
+
+def test_github_repo_search_best_match_omits_sort_and_uses_token(monkeypatch, fake_http) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    calls = fake_http(FakeResponse({"items": []}))
+    result = github_repo_search(query="vector database", sort="best_match", limit="50")
+    assert calls[0]["params"] == {"q": "vector database", "per_page": 20}
+    assert calls[0]["headers"]["Authorization"] == "Bearer test-token"
+    assert result["items"] == []
+
+
+def test_github_repo_search_bad_input_returns_error_without_request(fake_http) -> None:
+    calls = fake_http(FakeResponse(GH_PAYLOAD))
+    for kwargs in ({"query": ""}, {"query": None}, {"query": "x", "sort": "forks"}, {"query": "x", "limit": "many"},
+                   {"query": "x", "language": 3}):
+        result = github_repo_search(**kwargs)
+        assert result["tool"] == "github_repo_search"
+        assert result["error"] == "ValueError"
+    assert calls == []
+
+
+def test_github_repo_search_http_error_and_timeout_return_error_dict(fake_http) -> None:
+    fake_http(FakeResponse({}, status_code=403))
+    assert github_repo_search(query="x")["error"] == "HTTPError"
+    fake_http(requests.Timeout("slow"))
+    assert github_repo_search(query="x")["error"] == "Timeout"
+
+
+WIKI_PAYLOAD = {"query": {"pages": {"1": {"title": "Retrieval-augmented generation",
+                                          "fullurl": "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
+                                          "extract": " RAG is a technique. "}}}}
+
+
+def test_wikipedia_summary_happy_path_sends_one_request_and_maps_page(fake_http) -> None:
+    calls = fake_http(FakeResponse(WIKI_PAYLOAD))
+    result = wikipedia_summary(query="RAG", sentences=2)
+    assert len(calls) == 1
+    assert calls[0]["url"] == "https://en.wikipedia.org/w/api.php"
+    assert calls[0]["params"]["gsrsearch"] == "RAG"
+    assert calls[0]["params"]["exsentences"] == 2
+    assert calls[0]["headers"]["User-Agent"].startswith("AI20k-Day03")
+    assert result["found"] is True
+    assert result["items"] == [{"title": "Retrieval-augmented generation",
+                                "url": "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
+                                "source": "en.wikipedia.org", "summary": "RAG is a technique."}]
+
+
+def test_wikipedia_summary_vi_and_not_found(fake_http) -> None:
+    calls = fake_http(FakeResponse({"batchcomplete": ""}))
+    result = wikipedia_summary(query="khái niệm không tồn tại", lang="vi", sentences=99)
+    assert calls[0]["url"] == "https://vi.wikipedia.org/w/api.php"
+    assert calls[0]["params"]["exsentences"] == 10
+    assert result["found"] is False
+    assert result["items"] == []
+
+
+def test_wikipedia_summary_bad_input_returns_error_without_request(fake_http) -> None:
+    calls = fake_http(FakeResponse(WIKI_PAYLOAD))
+    for kwargs in ({"query": "  "}, {"query": "x", "lang": "fr"}, {"query": "x", "sentences": None}):
+        result = wikipedia_summary(**kwargs)
+        assert result["tool"] == "wikipedia_summary"
+        assert result["error"] == "ValueError"
+    assert calls == []
+
+
+def test_wikipedia_summary_network_error_returns_error_dict(fake_http) -> None:
+    fake_http(requests.ConnectionError("down"))
+    result = wikipedia_summary(query="RAG")
+    assert result["error"] == "ConnectionError"
+    assert result["tool"] == "wikipedia_summary"
+
+
+HF_PAYLOAD = [
+    {"id": "openai/whisper-large-v3", "pipeline_tag": "automatic-speech-recognition", "library_name": "transformers",
+     "downloads": 5000, "likes": 300},
+    {"pipeline_tag": "text-generation"},
+]
+
+
+def test_huggingface_model_search_happy_path_with_task_filter(fake_http) -> None:
+    calls = fake_http(FakeResponse(HF_PAYLOAD))
+    result = huggingface_model_search(query="whisper", task="automatic-speech-recognition", limit=3)
+    assert calls[0]["url"] == "https://huggingface.co/api/models"
+    assert calls[0]["params"] == {"search": "whisper", "sort": "downloads", "direction": -1, "limit": 3,
+                                  "pipeline_tag": "automatic-speech-recognition"}
+    assert result["items"] == [{"title": "openai/whisper-large-v3", "url": "https://huggingface.co/openai/whisper-large-v3",
+                                "source": "huggingface.co", "task": "automatic-speech-recognition",
+                                "library": "transformers", "downloads": 5000, "likes": 300}]
+
+
+def test_huggingface_model_search_bad_input_returns_error_without_request(fake_http) -> None:
+    calls = fake_http(FakeResponse(HF_PAYLOAD))
+    for kwargs in ({"query": ""}, {"query": "x", "sort": "stars"}, {"query": "x", "task": ["asr"]}, {"query": "x", "limit": True}):
+        result = huggingface_model_search(**kwargs)
+        assert result["tool"] == "huggingface_model_search"
+        assert result["error"] == "ValueError"
+    assert calls == []
+
+
+def test_huggingface_model_search_bad_shape_and_http_error(fake_http) -> None:
+    fake_http(FakeResponse({"error": "rate limited"}))
+    result = huggingface_model_search(query="x")
+    assert result["error"] == "ValueError"
+    assert "unexpected" in result["message"]
+    fake_http(FakeResponse([], status_code=500))
+    assert huggingface_model_search(query="x")["error"] == "HTTPError"

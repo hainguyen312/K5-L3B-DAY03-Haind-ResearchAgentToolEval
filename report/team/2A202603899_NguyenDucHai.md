@@ -22,9 +22,11 @@ Làm toàn bộ bài (nhóm 1 người): CP1 setup + baseline, CP2 tối ưu pro
   - v4: thêm 1 rule "đổi/bỏ nguồn → chỉ gọi tool mới" → 1.00.
   - v5: thêm tool mới, kiểm tra không regression → 1.00.
 - **CP3 — Tool mới** `hacker_news_search` (`starter_v0/tools/hacker_news_search/`): tìm story Hacker News qua Algolia API, chuẩn hoá/chặn input xấu từ model, trả error dict thay vì raise; đăng ký trong `tools/__init__.py` + `tools.yaml`; 6 unit test.
-- **Test challenge:** điền toàn bộ 14 stub trong `tests/test_tools_todo.py` cho tool có sẵn → `pytest` 87 passed, 0 failed, 0 skipped.
+- **Test challenge:** điền toàn bộ 14 stub trong `tests/test_tools_todo.py` cho tool có sẵn → `pytest` 87 passed, 0 failed, 0 skipped (113 sau khi thêm 3 tool bonus).
 - **CP4 — Eval nhóm** (`starter_v0/data/eval_group.json`): 10 case (5 single + 5 multi), 3 case route tới tool mới; run v5 10/10 và run đối chứng với prompt starter 7/10 (bắt được lỗi boundary/scope).
-- **CP5 — UI** `starter_v0/app.py` (Streamlit), live chat bằng `chat.py`, báo cáo nhóm Phần A + B.
+- **CP5 — UI** `starter_v0/app.py` (Streamlit, xác nhận yes/no ngay trong bong bóng chat), live chat qua UI (transcript `starter_v0/transcripts/ui_v5_*`), báo cáo nhóm Phần A + B.
+- **Bonus ≥4 tool mới:** thêm `github_repo_search`, `wikipedia_summary`, `huggingface_model_search` (+11 unit test, `pytest` 113 passed); base v6 vẫn 1.00.
+- **Bonus Telegram:** tạo bot + private channel, chat thật: agent soạn bản tin → hỏi xác nhận → tôi xác nhận → `send(confirmed=true)` → `status: sent` (`transcripts/ui_v5_openai_20261110T193057108186.transcript.json`); thử cả nhánh từ chối (không gửi).
 
 ## 4. Bằng chứng
 
